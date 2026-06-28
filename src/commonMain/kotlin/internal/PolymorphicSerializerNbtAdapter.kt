@@ -45,8 +45,9 @@ internal class PolymorphicSerializerNbtAdapter<T : Any>(
 
             error(
                 "$classType class '$actualName' cannot be serialized as base class '$baseName' because it " +
-                        "has property name that conflicts with NBT class discriminator '$classDiscriminator'. " +
-                        "Consider renaming property with @SerialName annotation"
+                        "has property name that conflicts with NBT class discriminator '$classDiscriminator'.\n" +
+                        "You can either change class discriminator in NbtConfiguration, " +
+                        "or rename property with @SerialName annotation."
             )
         }
 

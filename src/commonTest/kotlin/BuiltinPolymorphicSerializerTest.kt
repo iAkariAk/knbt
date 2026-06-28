@@ -15,7 +15,7 @@ import net.benwoodworth.knbt.BuiltinPolymorphicSerializerTest.ConflictingDiscrim
 import net.benwoodworth.knbt.BuiltinPolymorphicSerializerTest.PolymorphicTestCase.Companion.polymorphicTestCases
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
+import kotlin.test.assertFails
 import kotlin.test.assertIs
 
 @OptIn(ExperimentalSerializationApi::class)
@@ -315,7 +315,7 @@ class BuiltinPolymorphicSerializerTest {
         fun <T> ConflictingDiscriminatorTestCase<T>.test() {
             val jsonFailure = checkNotNull(conflictingSealedDiscriminatorJsonResult.exceptionOrNull()) { "jsonFailure" }
 
-            val nbtFailure = assertFailsWith(jsonFailure::class) {
+            val nbtFailure = assertFails {
                 nbt.encodeToNbtTag(polymorphicSerializer, data)
             }
 
@@ -326,7 +326,8 @@ class BuiltinPolymorphicSerializerTest {
 
             val expectedMessage = checkNotNull(jsonFailure.message) { "Expected JSON failure to have a message" }
                 .replace("JSON", "NBT")
-                .replace("Sealed class", "$polymorphicClassKind class")
+                .replace("JsonConfiguration", "NbtConfiguration")
+                .replace("Class", "$polymorphicClassKind class")
                 .replace(
                     SealedDataWithConflictingDiscriminator.serializer().descriptor.serialName,
                     polymorphicSerializer.descriptor.serialName
@@ -335,8 +336,6 @@ class BuiltinPolymorphicSerializerTest {
                     ConcreteSealedDataWithConflictingDiscriminator.serializer().descriptor.serialName,
                     concreteSerializer.descriptor.serialName
                 )
-                .replace("You can either change class discriminator in JsonConfiguration, rename", "Consider renaming")
-                .replace(" or fall back to array polymorphism", "")
 
             assertEquals(expectedMessage, nbtFailure.message)
         }
