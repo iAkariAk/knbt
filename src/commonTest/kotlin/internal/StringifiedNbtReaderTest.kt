@@ -204,6 +204,19 @@ class StringifiedNbtReaderTest {
     }
 
     @Test
+    fun Should_parse_entry_after_empty_list_in_compound() {
+        val expected = buildNbtCompound {
+            putNbtList<Nothing>("a") { }
+            put("b", "c")
+        }
+
+        assertEquals(
+            expected,
+            StringifiedNbt.decodeFromString(NbtTag.serializer(), """{a:[], b:"c"}"""),
+        )
+    }
+
+    @Test
     fun Should_fail_on_missing_key() {
         assertFailsWith<NbtDecodingException> { StringifiedNbt.decodeFromString(NbtTag.serializer(), "{ : value}") }
     }
