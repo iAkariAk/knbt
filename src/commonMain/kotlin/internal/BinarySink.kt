@@ -2,6 +2,7 @@ package net.benwoodworth.knbt.internal
 
 import okio.BufferedSink
 import okio.Closeable
+import kotlin.text.encodeToByteArray as encodeToUtf8ByteArray
 
 internal interface BinarySink : Closeable {
     fun writeByte(value: Byte)
@@ -15,7 +16,10 @@ internal interface BinarySink : Closeable {
     fun writeString(value: String)
 }
 
-internal class BigEndianBinarySink(private val sink: BufferedSink) : BinarySink {
+internal class BigEndianBinarySink(
+    private val sink: BufferedSink,
+    private val mutf8: Boolean,
+) : BinarySink {
     override fun close(): Unit = sink.close()
 
     override fun writeByte(value: Byte) {
@@ -43,7 +47,7 @@ internal class BigEndianBinarySink(private val sink: BufferedSink) : BinarySink 
     }
 
     override fun writeString(value: String) {
-        val bytes = value.encodeToByteArray()
+        val bytes = if (mutf8) value.encodeToMUtf8ByteArray() else value.encodeToUtf8ByteArray()
         if (bytes.size > UShort.MAX_VALUE.toInt()) throw NbtEncodingException("String too long to encode")
 
         sink.writeShort(bytes.size)
@@ -51,7 +55,10 @@ internal class BigEndianBinarySink(private val sink: BufferedSink) : BinarySink 
     }
 }
 
-internal class LittleEndianBinarySink(private val sink: BufferedSink) : BinarySink {
+internal class LittleEndianBinarySink(
+    private val sink: BufferedSink,
+    private val mutf8: Boolean,
+) : BinarySink {
     override fun close(): Unit = sink.close()
 
     override fun writeByte(value: Byte) {
@@ -79,7 +86,7 @@ internal class LittleEndianBinarySink(private val sink: BufferedSink) : BinarySi
     }
 
     override fun writeString(value: String) {
-        val bytes = value.encodeToByteArray()
+        val bytes = if (mutf8) value.encodeToMUtf8ByteArray() else value.encodeToUtf8ByteArray()
         if (bytes.size > UShort.MAX_VALUE.toInt()) throw NbtEncodingException("String too long to encode")
 
         sink.writeShortLe(bytes.size)
@@ -87,8 +94,10 @@ internal class LittleEndianBinarySink(private val sink: BufferedSink) : BinarySi
     }
 }
 
-internal class LittleEndianBase128BinarySink(private val sink: BufferedSink) :
-    BinarySink by LittleEndianBinarySink(sink) {
+internal class LittleEndianBase128BinarySink(
+    private val sink: BufferedSink,
+    private val mutf8: Boolean,
+) : BinarySink by LittleEndianBinarySink(sink, mutf8) {
 
     override fun writeInt(value: Int) {
         sink.writeLEB128(value.toLong().zigZagEncode())
@@ -99,7 +108,7 @@ internal class LittleEndianBase128BinarySink(private val sink: BufferedSink) :
     }
 
     override fun writeString(value: String) {
-        val bytes = value.encodeToByteArray()
+        val bytes = if (mutf8) value.encodeToMUtf8ByteArray() else value.encodeToUtf8ByteArray()
 
         sink.writeLEB128(bytes.size.toULong())
         sink.write(bytes)

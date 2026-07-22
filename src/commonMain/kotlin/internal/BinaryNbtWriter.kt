@@ -12,7 +12,10 @@ internal class BinaryNbtWriter(nbt: Nbt, sink: Sink) : NbtWriter, Closeable {
     private var wroteRootEntry = false
 
     private val sink: BinarySink = nbt.configuration.variant.getBinarySink(
-        nbt.configuration.compression.compress(NonClosingSink(sink), nbt.configuration.compressionLevel).buffer()
+        sink = nbt.configuration.compression
+            .compress(NonClosingSink(sink), nbt.configuration.compressionLevel)
+            .buffer(),
+        mutf8 = nbt.configuration.mutf8,
     )
 
     override fun close(): Unit = sink.close()

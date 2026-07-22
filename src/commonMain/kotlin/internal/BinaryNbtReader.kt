@@ -33,7 +33,8 @@ internal class BinaryNbtReader(nbt: Nbt, source: Source) : NbtReader, Closeable 
         }
 
         this.source = variant.getBinarySource(
-            compression.decompress(nonClosingSource).buffer()
+            source = compression.decompress(nonClosingSource).buffer(),
+            mutf8 = nbt.configuration.mutf8,
         )
     }
 

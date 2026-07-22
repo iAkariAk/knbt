@@ -5,30 +5,30 @@ import okio.BufferedSink
 import okio.BufferedSource
 
 public abstract class NbtVariant private constructor() {
-    internal abstract fun getBinarySource(source: BufferedSource): BinarySource
-    internal abstract fun getBinarySink(sink: BufferedSink): BinarySink
+    internal abstract fun getBinarySource(source: BufferedSource, mutf8: Boolean): BinarySource
+    internal abstract fun getBinarySink(sink: BufferedSink, mutf8: Boolean): BinarySink
 
     public data object Java : NbtVariant() {
-        override fun getBinarySource(source: BufferedSource): BinarySource =
-            BigEndianBinarySource(source)
+        override fun getBinarySource(source: BufferedSource, mutf8: Boolean): BinarySource =
+            BigEndianBinarySource(source, mutf8)
 
-        override fun getBinarySink(sink: BufferedSink): BinarySink =
-            BigEndianBinarySink(sink)
+        override fun getBinarySink(sink: BufferedSink, mutf8: Boolean): BinarySink =
+            BigEndianBinarySink(sink, mutf8)
     }
 
     public data object Bedrock : NbtVariant() {
-        override fun getBinarySource(source: BufferedSource): BinarySource =
-            LittleEndianBinarySource(source)
+        override fun getBinarySource(source: BufferedSource, mutf8: Boolean): BinarySource =
+            LittleEndianBinarySource(source, mutf8)
 
-        override fun getBinarySink(sink: BufferedSink): BinarySink =
-            LittleEndianBinarySink(sink)
+        override fun getBinarySink(sink: BufferedSink, mutf8: Boolean): BinarySink =
+            LittleEndianBinarySink(sink, mutf8)
     }
 
     public data object BedrockNetwork : NbtVariant() {
-        override fun getBinarySource(source: BufferedSource): BinarySource =
-            LittleEndianBase128BinarySource(source)
+        override fun getBinarySource(source: BufferedSource, mutf8: Boolean): BinarySource =
+            LittleEndianBase128BinarySource(source, mutf8)
 
-        override fun getBinarySink(sink: BufferedSink): BinarySink =
-            LittleEndianBase128BinarySink(sink)
+        override fun getBinarySink(sink: BufferedSink, mutf8: Boolean): BinarySink =
+            LittleEndianBase128BinarySink(sink, mutf8)
     }
 }

@@ -50,6 +50,7 @@ private object DefaultNbt : Nbt(
         variant = NbtVariant.Java, // Will be ignored by NbtBuilder
         compression = NbtCompression.None, // Will be ignored by NbtBuilder
         compressionLevel = null,
+        mutf8 = false,
         encodeDefaults = false,
         ignoreUnknownKeys = false,
         classDiscriminator = "type",
@@ -102,6 +103,12 @@ public class NbtBuilder internal constructor(nbt: Nbt) : NbtFormatBuilder {
             field = value
         }
 
+    /**
+     * Whether binary NBT strings are encoded and decoded using Java Modified UTF-8 instead of UTF-8.
+     * `false` by default.
+     */
+    public var mutf8: Boolean = nbt.configuration.mutf8
+
     override var encodeDefaults: Boolean = nbt.configuration.encodeDefaults
 
     override var ignoreUnknownKeys: Boolean = nbt.configuration.ignoreUnknownKeys
@@ -132,6 +139,7 @@ public class NbtBuilder internal constructor(nbt: Nbt) : NbtFormatBuilder {
                 variant = variant,
                 compression = compression,
                 compressionLevel = compressionLevel,
+                mutf8 = mutf8,
                 encodeDefaults = encodeDefaults,
                 ignoreUnknownKeys = ignoreUnknownKeys,
                 classDiscriminator = classDiscriminator,
