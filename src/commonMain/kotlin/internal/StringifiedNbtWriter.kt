@@ -99,10 +99,12 @@ internal class StringifiedNbtWriter(
     }
 
     override fun writeFloat(value: Float) {
+        if (!value.isFinite()) throw NbtEncodingException("Cannot encode a non-finite Float as SNBT: $value")
         appendable.append(value.toString()).append('f')
     }
 
     override fun writeDouble(value: Double) {
+        if (!value.isFinite()) throw NbtEncodingException("Cannot encode a non-finite Double as SNBT: $value")
         appendable.append(value.toString()).append('d')
     }
 
@@ -129,10 +131,13 @@ internal fun Appendable.appendNbtString(value: String, forceQuote: Boolean = fal
         else -> false
     }
 
+    fun Char.isSafeFirstCharacter(): Boolean =
+        this == '_' || this in 'a'..'z' || this in 'A'..'Z'
+
     return when {
         forceQuote -> appendQuoted()
         value.isEmpty() -> append("\"\"")
-        value.all { it.isSafeCharacter() } -> append(value)
+        value.first().isSafeFirstCharacter() && value.all { it.isSafeCharacter() } -> append(value)
         !value.contains('"') -> append('"').append(value).append('"')
         !value.contains('\'') -> append('\'').append(value).append('\'')
         else -> appendQuoted()

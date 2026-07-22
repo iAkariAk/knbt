@@ -15,6 +15,7 @@ Technical information about NBT can be found [here](https://minecraft.wiki/w/Min
 
 - Kotlin Multiplatform: JVM, JS, Linux, Windows, macOS, iOS, watchOS
 - Serialize any data to/from NBT or SNBT
+- Modern SNBT syntax, including extended numbers, string escapes, trailing commas, and flexible numeric arrays
 - Support for all NBT variants: Java, Bedrock Files, Bedrock Network
 - Support for all NBT compressions: gzip, zlib
 - Type-safe `NbtTag` classes, with convenient builder DSLs
@@ -46,6 +47,11 @@ val snbt = StringifiedNbt {
     //serializersModule = EmptySerializersModule
 }
 ```
+
+`StringifiedNbt` accepts modern SNBT while remaining permissive when reading legacy input. A token is decoded as a
+number only when it completely matches the modern number syntax; otherwise, legacy number-like unquoted tokens are
+kept as strings. Encoded compound keys are quoted when required by the modern syntax, while keys that remain safe in
+both versions keep their previous representation.
 
 ### Encoding and Decoding
 

@@ -158,7 +158,6 @@ class StringifiedNbtReaderTest {
         check(NbtString("one"), "one")
         check(NbtString("a1"), "a1")
         check(NbtString("2x"), "2x")
-        check(NbtString("2_2"), "2_2")
         check(NbtString("'"), "\"'\"")
         check(NbtString("\""), "'\"'")
         check(NbtString("'"), "'\\''")
