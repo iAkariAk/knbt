@@ -29,7 +29,7 @@ internal class StringifiedNbtReader(val source: CharSource) : NbtReader, Closeab
     }
 
     private val buffer = StringBuilder()
-    private var firstEntry = true
+    private val firstEntryStack = mutableListOf<Boolean>()
 
     override fun close(): Unit = source.close()
 
@@ -133,7 +133,7 @@ internal class StringifiedNbtReader(val source: CharSource) : NbtReader, Closeab
 
     override fun beginCompound() {
         source.skipWhitespace().expect('{')
-        firstEntry = true
+        firstEntryStack.add(true)
     }
 
     override fun beginCompoundEntry(): NbtReader.CompoundEntryInfo {
@@ -142,8 +142,8 @@ internal class StringifiedNbtReader(val source: CharSource) : NbtReader, Closeab
         return if (source.peek().read() == ReadResult('}')) {
             NbtReader.CompoundEntryInfo.End
         } else {
-            if (firstEntry) {
-                firstEntry = false
+            if (firstEntryStack.last()) {
+                firstEntryStack[firstEntryStack.lastIndex] = false
             } else {
                 val char = source.read()
                 if (char != ReadResult(',')) throw NbtDecodingException("Expected ',' or '}', but got '$char'")
@@ -161,15 +161,17 @@ internal class StringifiedNbtReader(val source: CharSource) : NbtReader, Closeab
         }
     }
 
-    override fun endCompound(): Unit =
+    override fun endCompound() {
         source.expect('}')
+        firstEntryStack.removeLast()
+    }
 
     private fun beginArray(type: Char): NbtReader.ArrayInfo {
         source.skipWhitespace().expect('[')
         source.skipWhitespace().expect(type, true)
         source.skipWhitespace().expect(';')
 
-        firstEntry = true
+        firstEntryStack.add(true)
 
         val empty = source.skipWhitespace().peek().read() == ReadResult(']')
         val size = if (empty) 0 else NbtReader.UNKNOWN_SIZE
@@ -183,8 +185,8 @@ internal class StringifiedNbtReader(val source: CharSource) : NbtReader, Closeab
         return if (source.peek().read() == ReadResult(']')) {
             false
         } else {
-            if (firstEntry) {
-                firstEntry = false
+            if (firstEntryStack.last()) {
+                firstEntryStack[firstEntryStack.lastIndex] = false
             } else {
                 val char = source.read()
                 if (char != ReadResult(',')) throw NbtDecodingException("Expected ',' or ']', but got '$char'")
@@ -193,14 +195,16 @@ internal class StringifiedNbtReader(val source: CharSource) : NbtReader, Closeab
         }
     }
 
-    private fun endCollection(): Unit =
+    private fun endCollection() {
         source.skipWhitespace().expect(']')
+        firstEntryStack.removeLast()
+    }
 
     override fun beginList(): NbtReader.ListInfo {
         source.skipWhitespace().expect('[')
         source.skipWhitespace()
 
-        firstEntry = true
+        firstEntryStack.add(true)
 
         val type = source.peekTagType() ?: TAG_End
         val size = if (type == TAG_End) 0 else NbtReader.UNKNOWN_SIZE
