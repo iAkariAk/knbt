@@ -11,6 +11,7 @@ import okio.blackholeSink
 import okio.buffer
 import okio.use
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
@@ -20,6 +21,88 @@ class BinaryNbtWriterTest {
     val nbt = Nbt {
         variant = NbtVariant.Java
         compression = NbtCompression.None
+    }
+
+    @Test
+    fun Should_encode_all_binary_NBT_strings_as_MUTF8_when_enabled() {
+        val mutf8Nbt = Nbt(nbt) {
+            mutf8 = true
+        }
+        val text = "A\u0000\u007F\u0080\u07FF\u0800\u9999\uD83D\uDE00Z"
+        val tag = buildNbtCompound("\u0000") {
+            put("\u0000", text)
+        }
+
+        val actual = mutf8Nbt.encodeToByteArray(NbtTag.serializer(), tag)
+
+        assertContentEquals(
+            expected = byteArrayOf(
+                10,
+                0, 2, 0xC0.toByte(), 0x80.toByte(),
+                8,
+                0, 2, 0xC0.toByte(), 0x80.toByte(),
+                0, 21,
+                0x41,
+                0xC0.toByte(), 0x80.toByte(),
+                0x7F,
+                0xC2.toByte(), 0x80.toByte(),
+                0xDF.toByte(), 0xBF.toByte(),
+                0xE0.toByte(), 0xA0.toByte(), 0x80.toByte(),
+                0xE9.toByte(), 0xA6.toByte(), 0x99.toByte(),
+                0xED.toByte(), 0xA0.toByte(), 0xBD.toByte(),
+                0xED.toByte(), 0xB8.toByte(), 0x80.toByte(),
+                0x5A,
+                0,
+            ),
+            actual = actual,
+        )
+    }
+
+    @Test
+    fun Should_encode_unpaired_surrogates_as_Java_MUTF8_code_units() {
+        val mutf8Nbt = Nbt(nbt) {
+            mutf8 = true
+        }
+        val tag = buildNbtCompound("") {
+            put("", "\uD800x\uDC00")
+        }
+
+        val actual = mutf8Nbt.encodeToByteArray(NbtTag.serializer(), tag)
+
+        assertContentEquals(
+            expected = byteArrayOf(
+                10, 0, 0,
+                8, 0, 0,
+                0, 7,
+                0xED.toByte(), 0xA0.toByte(), 0x80.toByte(),
+                0x78,
+                0xED.toByte(), 0xB0.toByte(), 0x80.toByte(),
+                0,
+            ),
+            actual = actual,
+        )
+    }
+
+    @Test
+    fun Should_keep_using_UTF8_when_MUTF8_is_disabled() {
+        val tag = buildNbtCompound("\u0000") {
+            put("\u0000", "\u0000\uD83D\uDE00")
+        }
+
+        val actual = nbt.encodeToByteArray(NbtTag.serializer(), tag)
+
+        assertContentEquals(
+            expected = byteArrayOf(
+                10,
+                0, 1, 0,
+                8,
+                0, 1, 0,
+                0, 5,
+                0, 0xF0.toByte(), 0x9F.toByte(), 0x98.toByte(), 0x80.toByte(),
+                0,
+            ),
+            actual = actual,
+        )
     }
 
     @Test

@@ -32,6 +32,7 @@ val nbt = Nbt {
     variant = NbtVariant. // Java, Bedrock, BedrockNetwork
     compression = NbtCompression. // None, Gzip, Zlib
     //compressionLevel = null // in 0..9
+    //mutf8 = false // use Java Modified UTF-8 for binary strings
     //encodeDefaults = false
     //ignoreUnknownKeys = false
     //serializersModule = EmptySerializersModule

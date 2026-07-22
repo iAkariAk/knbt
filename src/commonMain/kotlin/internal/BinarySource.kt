@@ -14,7 +14,10 @@ internal interface BinarySource {
     fun readString(): String
 }
 
-internal class BigEndianBinarySource(private val source: BufferedSource) : BinarySource {
+internal class BigEndianBinarySource(
+    private val source: BufferedSource,
+    private val mutf8: Boolean,
+) : BinarySource {
     override fun close(): Unit = source.close()
 
     override fun readByte(): Byte =
@@ -37,11 +40,18 @@ internal class BigEndianBinarySource(private val source: BufferedSource) : Binar
 
     override fun readString(): String {
         val byteCount = source.readShort().toUShort().toLong()
-        return source.readUtf8(byteCount)
+        return if (mutf8) {
+            source.readByteArray(byteCount).decodeFromMUtf8ByteArray()
+        } else {
+            source.readUtf8(byteCount)
+        }
     }
 }
 
-internal class LittleEndianBinarySource(private val source: BufferedSource) : BinarySource {
+internal class LittleEndianBinarySource(
+    private val source: BufferedSource,
+    private val mutf8: Boolean,
+) : BinarySource {
     override fun close(): Unit = source.close()
 
     override fun readByte(): Byte =
@@ -64,12 +74,18 @@ internal class LittleEndianBinarySource(private val source: BufferedSource) : Bi
 
     override fun readString(): String {
         val byteCount = source.readShortLe().toUShort().toLong()
-        return source.readUtf8(byteCount)
+        return if (mutf8) {
+            source.readByteArray(byteCount).decodeFromMUtf8ByteArray()
+        } else {
+            source.readUtf8(byteCount)
+        }
     }
 }
 
-internal class LittleEndianBase128BinarySource(private val source: BufferedSource) :
-    BinarySource by LittleEndianBinarySource(source) {
+internal class LittleEndianBase128BinarySource(
+    private val source: BufferedSource,
+    private val mutf8: Boolean,
+) : BinarySource by LittleEndianBinarySource(source, mutf8) {
 
     override fun readInt(): Int =
         source.readLEB128(5).zigZagDecode().toInt()
@@ -79,6 +95,10 @@ internal class LittleEndianBase128BinarySource(private val source: BufferedSourc
 
     override fun readString(): String {
         val byteCount = source.readLEB128(5).toLong()
-        return source.readUtf8(byteCount)
+        return if (mutf8) {
+            source.readByteArray(byteCount).decodeFromMUtf8ByteArray()
+        } else {
+            source.readUtf8(byteCount)
+        }
     }
 }
