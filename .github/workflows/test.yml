@@ -4,7 +4,7 @@ on: [ push, pull_request ]
 
 jobs:
   ubuntu:
-    name: "Test: jvm, js, linux"
+    name: "Test: jvm, js, linux, wasm"
     runs-on: ubuntu-latest
 
     steps:
@@ -20,7 +20,7 @@ jobs:
         run: ./gradlew clean
 
       - name: Test
-        run: ./gradlew jvmTest jsTest linuxX64Test
+        run: ./gradlew jvmTest jsTest linuxX64Test wasmJsTest wasmWasiTest
 
   windows:
     name: "Test: mingw"
