@@ -47,7 +47,6 @@ kotlin {
     wasmJs {
         browser()
         nodejs()
-        d8()
     }
     wasmWasi {
         nodejs()
