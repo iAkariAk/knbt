@@ -5,21 +5,121 @@ import net.benwoodworth.knbt.internal.CharSource.ReadResult.Companion.EOF
 import net.benwoodworth.knbt.internal.NbtTagType.*
 import okio.Closeable
 
+private data class ParsedSnbtInteger(
+    val type: NbtTagType,
+    val value: Long,
+)
+
+private object SnbtIntegerParser {
+    private val decimalMagnitude = Regex("""(?:0|[1-9][0-9]*(?:_+[0-9]+)*)""")
+    private val hexadecimalMagnitude = Regex("""[0-9a-f]+(?:_+[0-9a-f]+)*""", RegexOption.IGNORE_CASE)
+    private val binaryMagnitude = Regex("""[01]+(?:_+[01]+)*""")
+
+    fun parse(value: String, defaultType: NbtTagType = TAG_Int): ParsedSnbtInteger? {
+        if (value.isEmpty()) return null
+
+        val signLength = if (value.first() == '+' || value.first() == '-') 1 else 0
+        val radix = when {
+            value.length > signLength + 2 && value.regionMatches(signLength, "0x", 0, 2, ignoreCase = true) -> 16
+            value.length > signLength + 2 && value.regionMatches(signLength, "0b", 0, 2, ignoreCase = true) -> 2
+            else -> 10
+        }
+        val prefixLength = if (radix == 10) 0 else 2
+
+        val last = value.last().lowercaseChar()
+        val explicitSign = value.getOrNull(value.lastIndex - 1)?.lowercaseChar().takeIf { it == 's' || it == 'u' }
+        val hasTypeSuffix = last == 's' || last == 'i' || last == 'l' ||
+            last == 'b' && (radix != 16 || explicitSign != null)
+        val suffixLength = when {
+            !hasTypeSuffix -> 0
+            explicitSign != null -> 2
+            else -> 1
+        }
+
+        val magnitudeStart = signLength + prefixLength
+        val magnitudeEnd = value.length - suffixLength
+        if (magnitudeStart >= magnitudeEnd) return null
+
+        val magnitudeText = value.substring(magnitudeStart, magnitudeEnd)
+        val validMagnitude = when (radix) {
+            2 -> binaryMagnitude.matches(magnitudeText)
+            10 -> decimalMagnitude.matches(magnitudeText)
+            16 -> hexadecimalMagnitude.matches(magnitudeText)
+            else -> error("Unsupported radix: $radix")
+        }
+        if (!validMagnitude) return null
+
+        val magnitude = magnitudeText.replace("_", "").toULongOrNull(radix)
+            ?: throw NbtDecodingException("Integer value is out of range: '$value'")
+        val negative = signLength == 1 && value.first() == '-'
+        val unsigned = when (explicitSign) {
+            's' -> false
+            'u' -> true
+            else -> radix != 10
+        }
+        if (unsigned && negative) {
+            throw NbtDecodingException("Unsigned integer cannot be negative: '$value'")
+        }
+
+        val type = when (last.takeIf { hasTypeSuffix }) {
+            'b' -> TAG_Byte
+            's' -> TAG_Short
+            'l' -> TAG_Long
+            'i' -> TAG_Int
+            else -> defaultType
+        }
+        val bits = when (type) {
+            TAG_Byte -> 8
+            TAG_Short -> 16
+            TAG_Int -> 32
+            TAG_Long -> 64
+            else -> error("Unsupported integer type: $type")
+        }
+        val maximumMagnitude = when {
+            unsigned && bits == 64 -> ULong.MAX_VALUE
+            unsigned -> (1UL shl bits) - 1UL
+            negative -> 1UL shl (bits - 1)
+            else -> (1UL shl (bits - 1)) - 1UL
+        }
+        if (magnitude > maximumMagnitude) {
+            val signDescription = if (unsigned) "Unsigned" else "Signed"
+            throw NbtDecodingException("$signDescription $type value is out of range: '$value'")
+        }
+
+        val signedValue = when {
+            negative && bits == 64 && magnitude == (1UL shl 63) -> Long.MIN_VALUE
+            negative -> -magnitude.toLong()
+            type == TAG_Byte -> magnitude.toByte().toLong()
+            type == TAG_Short -> magnitude.toShort().toLong()
+            type == TAG_Int -> magnitude.toInt().toLong()
+            else -> magnitude.toLong()
+        }
+        return ParsedSnbtInteger(type, signedValue)
+    }
+}
+
 internal class StringifiedNbtReader(val source: CharSource) : NbtReader, Closeable {
     private companion object {
         // TODO https://youtrack.jetbrains.com/issue/KT-49065
         // val DOUBLE = Regex("""[-+]?(?:[0-9]+\.?|[0-9]*\.[0-9]+)(?:e[-+]?[0-9]+)?d?""", RegexOption.IGNORE_CASE)
-        val DOUBLE_A = Regex("""[-+]?[0-9]+\.?(?:e[-+]?[0-9]+)?d?""", RegexOption.IGNORE_CASE)
-        val DOUBLE_B = Regex("""[-+]?[0-9]*\.[0-9]+(?:e[-+]?[0-9]+)?d?""", RegexOption.IGNORE_CASE)
+        val DOUBLE_A = Regex(
+            """[-+]?[0-9]+(?:_+[0-9]+)*(?:\.(?:[0-9]+(?:_+[0-9]+)*)?(?:e[-+]?[0-9]+(?:_+[0-9]+)*)?d?|e[-+]?[0-9]+(?:_+[0-9]+)*d?|d)""",
+            RegexOption.IGNORE_CASE,
+        )
+        val DOUBLE_B = Regex(
+            """[-+]?(?:[0-9]+(?:_+[0-9]+)*)?\.[0-9]+(?:_+[0-9]+)*(?:e[-+]?[0-9]+(?:_+[0-9]+)*)?d?""",
+            RegexOption.IGNORE_CASE,
+        )
 
         // val FLOAT = Regex("""[-+]?(?:[0-9]+\.?|[0-9]*\.[0-9]+)(?:e[-+]?[0-9]+)?f""", RegexOption.IGNORE_CASE)
-        val FLOAT_A = Regex("""[-+]?[0-9]+\.?(?:e[-+]?[0-9]+)?f""", RegexOption.IGNORE_CASE)
-        val FLOAT_B = Regex("""[-+]?[0-9]*\.[0-9]+(?:e[-+]?[0-9]+)?f""", RegexOption.IGNORE_CASE)
-
-        val BYTE = Regex("""[-+]?(?:0|[1-9][0-9]*)b""", RegexOption.IGNORE_CASE)
-        val LONG = Regex("""[-+]?(?:0|[1-9][0-9]*)l""", RegexOption.IGNORE_CASE)
-        val SHORT = Regex("""[-+]?(?:0|[1-9][0-9]*)s""", RegexOption.IGNORE_CASE)
-        val INT = Regex("""[-+]?(?:0|[1-9][0-9]*)""")
+        val FLOAT_A = Regex(
+            """[-+]?[0-9]+(?:_+[0-9]+)*\.?(?:e[-+]?[0-9]+(?:_+[0-9]+)*)?f""",
+            RegexOption.IGNORE_CASE,
+        )
+        val FLOAT_B = Regex(
+            """[-+]?(?:[0-9]+(?:_+[0-9]+)*)?\.[0-9]+(?:_+[0-9]+)*(?:e[-+]?[0-9]+(?:_+[0-9]+)*)?f""",
+            RegexOption.IGNORE_CASE,
+        )
 
         fun ReadResult.isUnquotedStringCharacter(): Boolean =
             this != EOF && toChar().let {
@@ -30,6 +130,7 @@ internal class StringifiedNbtReader(val source: CharSource) : NbtReader, Closeab
 
     private val buffer = StringBuilder()
     private val firstEntryStack = mutableListOf<Boolean>()
+    private val arrayTypeStack = mutableListOf<NbtTagType>()
 
     override fun close(): Unit = source.close()
 
@@ -63,11 +164,64 @@ internal class StringifiedNbtReader(val source: CharSource) : NbtReader, Closeab
                 quote -> break
                 backslash -> when (val esc = read()) {
                     EOF -> throw NbtDecodingException("Unexpected EOF in String")
-                    quote, backslash -> buffer.append(esc)
+                    ReadResult('\''), ReadResult('"'), backslash -> buffer.append(esc)
+                    ReadResult('b') -> buffer.append('\b')
+                    ReadResult('s') -> buffer.append(' ')
+                    ReadResult('t') -> buffer.append('\t')
+                    ReadResult('n') -> buffer.append('\n')
+                    ReadResult('f') -> buffer.append('\u000c')
+                    ReadResult('r') -> buffer.append('\r')
+                    ReadResult('x') -> buffer.appendUnicodeCodePoint(readHexEscape(2))
+                    ReadResult('u') -> buffer.appendUnicodeCodePoint(readHexEscape(4))
+                    ReadResult('U') -> buffer.appendUnicodeCodePoint(readHexEscape(8))
+                    ReadResult('N') -> buffer.appendUnicodeCodePoint(readNamedUnicodeEscape())
                     else -> throw NbtDecodingException("Invalid escape: \\$esc")
                 }
                 else -> buffer.append(char.toChar())
             }
+        }
+    }
+
+    private fun CharSource.readHexEscape(length: Int): Int {
+        var value = 0u
+
+        repeat(length) {
+            val char = read()
+            if (char == EOF) throw NbtDecodingException("Unexpected EOF in Unicode escape")
+            val digit = char.toChar().digitToIntOrNull(16)
+                ?: throw NbtDecodingException("Invalid hexadecimal digit '${char.toChar()}' in Unicode escape")
+            value = value * 16u + digit.toUInt()
+        }
+
+        if (value > 0x10ffffu) {
+            throw NbtDecodingException("Unicode code point is out of range: ${value.toString(16)}")
+        }
+        return value.toInt()
+    }
+
+    private fun CharSource.readNamedUnicodeEscape(): Int {
+        expect('{')
+        val name = buildString {
+            while (true) {
+                when (val char = read()) {
+                    EOF -> throw NbtDecodingException("Unexpected EOF in named Unicode escape")
+                    ReadResult('}') -> break
+                    else -> append(char.toChar())
+                }
+            }
+        }
+        if (name.isEmpty()) throw NbtDecodingException("Unicode character name cannot be empty")
+        return unicodeCodePointByName(name)
+            ?: throw NbtDecodingException("Unknown Unicode character name: '$name'")
+    }
+
+    private fun StringBuilder.appendUnicodeCodePoint(codePoint: Int) {
+        if (codePoint <= 0xffff) {
+            append(codePoint.toChar())
+        } else {
+            val supplementary = codePoint - 0x10000
+            append(((supplementary ushr 10) + 0xd800).toChar())
+            append(((supplementary and 0x3ff) + 0xdc00).toChar())
         }
     }
 
@@ -94,14 +248,12 @@ internal class StringifiedNbtReader(val source: CharSource) : NbtReader, Closeab
             ReadResult('\''), ReadResult('"') -> TAG_String
             else -> {
                 peek().bufferUnquotedString()
+                val integer = SnbtIntegerParser.parse(buffer.toString())
                 when {
                     buffer.isEmpty() -> null
                     FLOAT_A.matches(buffer) -> TAG_Float
                     FLOAT_B.matches(buffer) -> TAG_Float
-                    BYTE.matches(buffer) -> TAG_Byte
-                    LONG.matches(buffer) -> TAG_Long
-                    SHORT.matches(buffer) -> TAG_Short
-                    INT.matches(buffer) -> TAG_Int
+                    integer != null -> integer.type
                     DOUBLE_A.matches(buffer) -> TAG_Double
                     DOUBLE_B.matches(buffer) -> TAG_Double
                     "true".contentEquals(buffer, true) -> TAG_Byte
@@ -147,6 +299,10 @@ internal class StringifiedNbtReader(val source: CharSource) : NbtReader, Closeab
             } else {
                 val char = source.read()
                 if (char != ReadResult(',')) throw NbtDecodingException("Expected ',' or '}', but got '$char'")
+                source.skipWhitespace()
+                if (source.peek().read() == ReadResult('}')) {
+                    return NbtReader.CompoundEntryInfo.End
+                }
             }
 
             val name = source.skipWhitespace().readSnbtString()
@@ -166,12 +322,13 @@ internal class StringifiedNbtReader(val source: CharSource) : NbtReader, Closeab
         firstEntryStack.removeLast()
     }
 
-    private fun beginArray(type: Char): NbtReader.ArrayInfo {
+    private fun beginArray(type: Char, elementType: NbtTagType): NbtReader.ArrayInfo {
         source.skipWhitespace().expect('[')
         source.skipWhitespace().expect(type, true)
         source.skipWhitespace().expect(';')
 
         firstEntryStack.add(true)
+        arrayTypeStack.add(elementType)
 
         val empty = source.skipWhitespace().peek().read() == ReadResult(']')
         val size = if (empty) 0 else NbtReader.UNKNOWN_SIZE
@@ -179,7 +336,7 @@ internal class StringifiedNbtReader(val source: CharSource) : NbtReader, Closeab
         return NbtReader.ArrayInfo(size)
     }
 
-    private fun beginCollectionEntry(): Boolean {
+    private fun beginCollectionEntry(allowTrailingComma: Boolean): Boolean {
         source.skipWhitespace()
 
         return if (source.peek().read() == ReadResult(']')) {
@@ -190,6 +347,10 @@ internal class StringifiedNbtReader(val source: CharSource) : NbtReader, Closeab
             } else {
                 val char = source.read()
                 if (char != ReadResult(',')) throw NbtDecodingException("Expected ',' or ']', but got '$char'")
+                if (allowTrailingComma) {
+                    source.skipWhitespace()
+                    if (source.peek().read() == ReadResult(']')) return false
+                }
             }
             true
         }
@@ -213,37 +374,43 @@ internal class StringifiedNbtReader(val source: CharSource) : NbtReader, Closeab
     }
 
     override fun beginListEntry(): Boolean =
-        beginCollectionEntry()
+        beginCollectionEntry(allowTrailingComma = true)
 
     override fun endList(): Unit =
         endCollection()
 
     override fun beginByteArray(): NbtReader.ArrayInfo =
-        beginArray('B')
+        beginArray('B', TAG_Byte)
 
     override fun beginByteArrayEntry(): Boolean =
-        beginCollectionEntry()
+        beginCollectionEntry(allowTrailingComma = false)
 
-    override fun endByteArray(): Unit =
+    override fun endByteArray() {
         endCollection()
+        arrayTypeStack.removeLast()
+    }
 
     override fun beginIntArray(): NbtReader.ArrayInfo =
-        beginArray('I')
+        beginArray('I', TAG_Int)
 
     override fun beginIntArrayEntry(): Boolean =
-        beginCollectionEntry()
+        beginCollectionEntry(allowTrailingComma = false)
 
-    override fun endIntArray(): Unit =
+    override fun endIntArray() {
         endCollection()
+        arrayTypeStack.removeLast()
+    }
 
     override fun beginLongArray(): NbtReader.ArrayInfo =
-        beginArray('L')
+        beginArray('L', TAG_Long)
 
     override fun beginLongArrayEntry(): Boolean =
-        beginCollectionEntry()
+        beginCollectionEntry(allowTrailingComma = false)
 
-    override fun endLongArray(): Unit =
+    override fun endLongArray() {
         endCollection()
+        arrayTypeStack.removeLast()
+    }
 
     override fun readByte(): Byte {
         source.skipWhitespace().bufferUnquotedString()
@@ -252,9 +419,9 @@ internal class StringifiedNbtReader(val source: CharSource) : NbtReader, Closeab
             buffer.contentEquals("true", true) -> 1
             buffer.contentEquals("false", true) -> 0
             else -> {
-                if (!BYTE.matches(buffer)) throw NbtDecodingException("Expected Byte, but was '$buffer'")
-                buffer.setLength(buffer.length - 1)
-                buffer.toString().toByte()
+                val integer = SnbtIntegerParser.parse(buffer.toString(), arrayTypeStack.lastOrNull() ?: TAG_Int)
+                if (integer?.type != TAG_Byte) throw NbtDecodingException("Expected Byte, but was '$buffer'")
+                integer.value.toByte()
             }
         }
     }
@@ -262,24 +429,33 @@ internal class StringifiedNbtReader(val source: CharSource) : NbtReader, Closeab
     override fun readShort(): Short {
         source.skipWhitespace().bufferUnquotedString()
 
-        if (!SHORT.matches(buffer)) throw NbtDecodingException("Expected Short, but was '$buffer'")
-        buffer.setLength(buffer.length - 1)
-        return buffer.toString().toShort()
+        val integer = SnbtIntegerParser.parse(buffer.toString())
+        if (integer?.type != TAG_Short) throw NbtDecodingException("Expected Short, but was '$buffer'")
+        return integer.value.toShort()
     }
 
     override fun readInt(): Int {
         source.skipWhitespace().bufferUnquotedString()
 
-        if (!INT.matches(buffer)) throw NbtDecodingException("Expected Int, but was '$buffer'")
-        return buffer.toString().toInt()
+        val integer = SnbtIntegerParser.parse(buffer.toString(), arrayTypeStack.lastOrNull() ?: TAG_Int)
+        val accepted = integer?.type == TAG_Int ||
+            arrayTypeStack.lastOrNull() == TAG_Int && (integer?.type == TAG_Byte || integer?.type == TAG_Short)
+        if (!accepted) {
+            throw NbtDecodingException("Expected Int, but was '$buffer'")
+        }
+        return integer.value.toInt()
     }
 
     override fun readLong(): Long {
         source.skipWhitespace().bufferUnquotedString()
 
-        if (!LONG.matches(buffer)) throw NbtDecodingException("Expected Long, but was '$buffer'")
-        buffer.setLength(buffer.length - 1)
-        return buffer.toString().toLong()
+        val integer = SnbtIntegerParser.parse(buffer.toString(), arrayTypeStack.lastOrNull() ?: TAG_Int)
+        val accepted = integer?.type == TAG_Long || arrayTypeStack.lastOrNull() == TAG_Long &&
+            (integer?.type == TAG_Byte || integer?.type == TAG_Short || integer?.type == TAG_Int)
+        if (!accepted) {
+            throw NbtDecodingException("Expected Long, but was '$buffer'")
+        }
+        return integer.value
     }
 
     override fun readFloat(): Float {
@@ -289,7 +465,9 @@ internal class StringifiedNbtReader(val source: CharSource) : NbtReader, Closeab
             throw NbtDecodingException("Expected Float, but was '$buffer'")
         }
         buffer.setLength(buffer.length - 1)
-        return buffer.toString().toFloat()
+        val value = buffer.toString().replace("_", "").toFloat()
+        if (!value.isFinite()) throw NbtDecodingException("Float value is not finite: '$buffer'")
+        return value
     }
 
     override fun readDouble(): Double {
@@ -299,7 +477,9 @@ internal class StringifiedNbtReader(val source: CharSource) : NbtReader, Closeab
             throw NbtDecodingException("Expected Double, but was '$buffer'")
         }
         if (buffer.last().equals('d', true)) buffer.setLength(buffer.length - 1)
-        return buffer.toString().toDouble()
+        val value = buffer.toString().replace("_", "").toDouble()
+        if (!value.isFinite()) throw NbtDecodingException("Double value is not finite: '$buffer'")
+        return value
     }
 
     override fun readString(): String =
