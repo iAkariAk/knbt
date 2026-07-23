@@ -229,15 +229,25 @@ Replacement refactorings will be provided where possible for broken APIs. Change
 
 ### Gradle
 
+Packages for this fork are published to the Maven registry for
+[iAkariAk/knbt](https://github.com/iAkariAk/knbt) on GitHub Packages.
+
 ```kotlin
 plugins {
-    kotlin("jvm") version "2.2.21" // or kotlin("multiplatform"), etc.
-    //kotlin("plugin.serialization") version "2.2.21"
+    kotlin("jvm") version "2.4.0" // or kotlin("multiplatform"), etc.
+    //kotlin("plugin.serialization") version "2.4.0"
 }
 
 repositories {
     mavenCentral()
-    //maven("https://central.sonatype.com/repository/maven-snapshots/")
+    maven {
+        name = "GitHubPackages"
+        url = uri("https://maven.pkg.github.com/iakariak/knbt")
+        credentials {
+            username = System.getenv("GITHUB_ACTOR")
+            password = System.getenv("GITHUB_TOKEN")
+        }
+    }
 }
 
 dependencies {
