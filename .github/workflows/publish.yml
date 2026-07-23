@@ -1,21 +1,15 @@
 name: Publish
 
 on:
-  push:
-    tags: [ 'v*' ]
-    branches: [ 'main', '[0-9]+.[0-9]+', '[0-9]+.[0-9]+.[0-9]+' ]
-
-env:
-  ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
-  ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.SIGNING_KEY_ID }}
-  ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
-  ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_PORTAL_USERNAME }}
-  ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PORTAL_PASSWORD }}
+  push: {}
 
 jobs:
   windows:
     name: "Publish: multiplatform, jvm, js, linux, mingw"
     runs-on: windows-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - uses: actions/checkout@v4
@@ -35,19 +29,26 @@ jobs:
         if: ${{ false }} # Skip, since it fails on Windows: https://youtrack.jetbrains.com/issue/KT-50545/
         run: .\gradlew.bat clean
 
-      - name: Publish to Maven
+      - name: Publish to GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >-
           .\gradlew.bat
-          publishKotlinMultiplatformPublicationToMavenCentralRepository
-          publishJvmPublicationToMavenCentralRepository
-          publishJsPublicationToMavenCentralRepository
-          publishLinuxX64PublicationToMavenCentralRepository
-          publishLinuxArm64PublicationToMavenCentralRepository
-          publishMingwX64PublicationToMavenCentralRepository
+          publishKotlinMultiplatformPublicationToGitHubPackagesRepository
+          publishJvmPublicationToGitHubPackagesRepository
+          publishJsPublicationToGitHubPackagesRepository
+          publishLinuxX64PublicationToGitHubPackagesRepository
+          publishLinuxArm64PublicationToGitHubPackagesRepository
+          publishMingwX64PublicationToGitHubPackagesRepository
+          publishWasmJsPublicationToGitHubPackagesRepository
+          publishWasmWasiPublicationToGitHubPackagesRepository
 
   macos:
     name: "Publish: macos, ios, watchos"
     runs-on: macos-latest
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - uses: actions/checkout@v4
@@ -66,22 +67,20 @@ jobs:
       - name: Clean
         run: ./gradlew clean
 
-      - name: Publish to Maven
+      - name: Publish to GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >-
           ./gradlew
-          publishMacosX64PublicationToMavenCentralRepository
-          publishMacosArm64PublicationToMavenCentralRepository
-          publishIosSimulatorArm64PublicationToMavenCentralRepository
-          publishIosX64PublicationToMavenCentralRepository
-          publishWatchosSimulatorArm64PublicationToMavenCentralRepository
-          publishWatchosX64PublicationToMavenCentralRepository
-          publishWatchosArm32PublicationToMavenCentralRepository
-          publishWatchosArm64PublicationToMavenCentralRepository
-          publishTvosSimulatorArm64PublicationToMavenCentralRepository
-          publishTvosX64PublicationToMavenCentralRepository
-          publishTvosArm64PublicationToMavenCentralRepository
-          publishIosArm64PublicationToMavenCentralRepository
-          publishWatchosDeviceArm64PublicationToMavenCentralRepository
+          publishMacosArm64PublicationToGitHubPackagesRepository
+          publishIosSimulatorArm64PublicationToGitHubPackagesRepository
+          publishWatchosSimulatorArm64PublicationToGitHubPackagesRepository
+          publishWatchosArm32PublicationToGitHubPackagesRepository
+          publishWatchosArm64PublicationToGitHubPackagesRepository
+          publishTvosSimulatorArm64PublicationToGitHubPackagesRepository
+          publishTvosArm64PublicationToGitHubPackagesRepository
+          publishIosArm64PublicationToGitHubPackagesRepository
+          publishWatchosDeviceArm64PublicationToGitHubPackagesRepository
 
   publish-kdoc:
     name: 'Publish KDoc'
@@ -91,6 +90,7 @@ jobs:
     if: ${{ startsWith(github.ref, 'refs/tags/v') }}
 
     permissions:
+      contents: read
       pages: write
       id-token: write
 

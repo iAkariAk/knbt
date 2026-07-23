@@ -133,14 +133,24 @@ dokka {
     }
 }
 
-mavenPublishing {
-    publishToMavenCentral()
-    signAllPublications()
+publishing {
+    repositories {
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/iakariak/knbt")
+            credentials {
+                username = project.findProperty("gpr.user")?.toString() ?: System.getenv("GITHUB_ACTOR")
+                password = project.findProperty("gpr.key")?.toString() ?: System.getenv("GITHUB_TOKEN")
+            }
+        }
+    }
+}
 
+mavenPublishing {
     pom {
         name = "knbt"
         description = "Minecraft NBT support for kotlinx.serialization"
-        url = "https://github.com/BenWoodworth/knbt"
+        url = "https://github.com/iAkariAk/knbt"
 
         licenses {
             license {
@@ -156,9 +166,9 @@ mavenPublishing {
             }
         }
         scm {
-            connection = "scm:git:git://github.com:BenWoodworth/knbt.git"
-            developerConnection = "scm:git:ssh://github.com:BenWoodworth/knbt.git"
-            url = "https://github.com/BenWoodworth/knbt"
+            connection = "scm:git:git://github.com:iAkariAk/knbt.git"
+            developerConnection = "scm:git:ssh://github.com:iAkariAk/knbt.git"
+            url = "https://github.com/iAkariAk/knbt"
         }
     }
 }

@@ -1,5 +1,8 @@
 # knbt
 
+> [!NOTE]
+> This repository is a fork of [BenWoodworth/knbt](https://github.com/BenWoodworth/knbt), maintained for use by [MCT](https://github.com/iAkariAk/mct).
+
 [![Maven Central](https://img.shields.io/maven-central/v/net.benwoodworth.knbt/knbt)](https://central.sonatype.com/artifact/net.benwoodworth.knbt/knbt)
 [![Maven Snapshots](https://img.shields.io/maven-metadata/v?label=maven-snapshots&metadataUrl=https%3A%2F%2Fcentral.sonatype.com%2Frepository%2Fmaven-snapshots%2Fnet%2Fbenwoodworth%2Fknbt%2Fknbt%2Fmaven-metadata.xml)](https://central.sonatype.com/service/rest/repository/browse/maven-snapshots/net/benwoodworth/knbt/knbt)
 [![KDoc](https://img.shields.io/badge/api-KDoc-blue)](https://benwoodworth.github.io/knbt)
