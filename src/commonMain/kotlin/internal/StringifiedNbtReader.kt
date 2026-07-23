@@ -466,7 +466,9 @@ internal class StringifiedNbtReader(val source: CharSource) : NbtReader, Closeab
         }
         buffer.setLength(buffer.length - 1)
         val value = buffer.toString().replace("_", "").toFloat()
-        if (!value.isFinite()) throw NbtDecodingException("Float value is not finite: '$buffer'")
+        // Kotlin/JS Float values retain JS Number precision, so force Float32 rounding when checking for overflow.
+        val float32Value = Float.fromBits(value.toRawBits())
+        if (!float32Value.isFinite()) throw NbtDecodingException("Float value is not finite: '$buffer'")
         return value
     }
 
