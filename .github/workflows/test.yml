@@ -61,7 +61,7 @@ jobs:
       - name: Test
         run: >
           ./gradlew
-          macosArm64Test macosX64Test
-          iosSimulatorArm64Test iosX64Test
-          tvosSimulatorArm64Test tvosX64Test
-          watchosSimulatorArm64Test watchosX64Test
+          macosArm64Test
+          iosSimulatorArm64Test
+          tvosSimulatorArm64Test
+          watchosSimulatorArm64Test
